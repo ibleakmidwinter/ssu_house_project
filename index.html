@@ -1,0 +1,382 @@
+<!doctype html>
+<!--
+  index.html — 방값판독기: 동네별 전월세 시세 분석 및 적정성 판독기
+  프레임워크·빌드 도구를 쓰지 않으므로 이 파일을 열면 바로 화면이 보인다.
+  좌측 입력 패널에서 조건을 넣고, 우측 결과 패널에 판정 카드·분포 차트·비교 테이블을 그린다.
+-->
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="cache-control" content="no-cache" />
+  <title>방값판독기 — 계약 전 빠르게 확인하는 내 방 적정 시세</title>
+  <meta name="description" content="국토교통부 실거래가로 동네 전월세 시세를 분석하고, 내 매물이 적정 가격인지 판정합니다." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>" />
+</head>
+<body>
+
+<!-- ============ 상단 헤더 ============ -->
+<header class="topbar">
+  <div class="topbar__inner">
+    <a class="brand" href="#">
+      <span class="brand__mark" aria-hidden="true">🏠</span>
+      <span class="brand__text">방값판독기</span>
+      <span class="brand__tagline">계약 전 빠르게 확인하는 내 방 적정 시세</span>
+    </a>
+    <span class="build-stamp" id="build-stamp">—</span>
+    <button id="theme-toggle" class="icon-btn" type="button" aria-label="화면 테마 전환"><span aria-hidden="true">◐</span></button>
+  </div>
+</header>
+
+<main id="app" class="layout">
+
+  <!-- ==================================================================
+       입력 패널
+       ================================================================== -->
+  <section class="panel panel--input" aria-labelledby="form-title">
+    <form id="search-form" class="card form" novalidate>
+      <h1 id="form-title" class="panel__title">매물 조건 입력</h1>
+
+      <!-- ① 지역 -->
+      <fieldset class="field-group">
+        <legend class="field-group__legend"><span class="step-dot">1</span> 지역</legend>
+
+        <div class="segmented" role="tablist" aria-label="지역 입력 방식">
+          <button type="button" class="segmented__btn is-on" role="tab" aria-selected="true" data-region-mode="text">검색</button>
+          <button type="button" class="segmented__btn" role="tab" aria-selected="false" data-region-mode="select">직접 선택</button>
+        </div>
+
+        <!-- (a) 검색 -->
+        <div id="region-text-pane" class="pane pane--active">
+          <label class="label" for="region-text">동네 · 대학 · 역 이름</label>
+          <div class="input-wrap">
+            <span class="input-wrap__icon" aria-hidden="true">📍</span>
+            <input id="region-text" class="input input--with-icon" type="text" autocomplete="off"
+                   list="region-suggestions" placeholder="예: 상도동, 숭실대, 동작구" />
+          </div>
+          <datalist id="region-suggestions"></datalist>
+          <p class="help" id="region-picked">—</p>
+
+          <details class="mini-details" id="ai-parse-box">
+            <summary>문장으로 한 번에 입력하기 ✨</summary>
+            <label class="label" for="ai-parse-text">조건을 문장으로 적어 주세요</label>
+            <textarea id="ai-parse-text" class="input input--area" rows="2"
+              placeholder="예: 숭실대 근처 보증금 1000에 월세 60 정도 원룸, 전용 23제곱미터"></textarea>
+            <button type="button" class="btn btn--ghost" id="ai-parse-btn">문장에서 자동으로 채우기</button>
+            <p class="help" id="ai-parse-result">AI가 문장을 읽고 아래 입력칸을 채워 줍니다. 채운 값은 직접 수정할 수 있습니다.</p>
+          </details>
+        </div>
+
+        <!-- (b) 직접 선택 -->
+        <div id="region-select-pane" class="pane">
+          <div class="row row--2">
+            <div>
+              <label class="label" for="sido">시 · 도</label>
+              <select id="sido" class="input"></select>
+            </div>
+            <div>
+              <label class="label" for="sigungu">시 · 군 · 구</label>
+              <select id="sigungu" class="input"></select>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="label" for="dong">읍 · 면 · 동</label>
+          <input id="dong" class="input" type="text" list="dong-suggestions" placeholder="전체 (비워두면 시군구 전체)" />
+          <datalist id="dong-suggestions"></datalist>
+          <p class="help">분석을 한 번 돌리면 그 지역의 동 목록이 자동완성에 채워집니다.</p>
+        </div>
+
+        <details class="mini-details">
+          <summary>데이터가 0건으로 나오면 ▾</summary>
+          <label class="label" for="manual-code">시군구 코드 직접 입력 <span class="optional">숫자 5자리</span></label>
+          <input id="manual-code" class="input" type="text" inputmode="numeric" maxlength="5" placeholder="예: 11590" />
+          <p class="help">지역 코드 표가 최신이 아닐 때 쓰는 보정 수단입니다.</p>
+        </details>
+
+        <p class="error" id="region-error" role="alert" aria-live="polite" hidden></p>
+      </fieldset>
+
+      <!-- ② 주택 유형 -->
+      <fieldset class="field-group">
+        <legend class="field-group__legend"><span class="step-dot">2</span> 주택 유형</legend>
+        <div class="segmented segmented--wide" role="radiogroup" aria-label="주택 유형">
+          <button type="button" class="segmented__btn is-on" role="radio" aria-checked="true" data-house="전체">전체</button>
+          <button type="button" class="segmented__btn" role="radio" aria-checked="false" data-house="연립">연립</button>
+          <button type="button" class="segmented__btn" role="radio" aria-checked="false" data-house="다세대">다세대</button>
+        </div>
+        <p class="help">국토교통부 연립다세대 전월세 실거래가 자료를 기준으로 분석합니다.</p>
+      </fieldset>
+
+      <!-- ③ 매물 스펙 -->
+      <fieldset class="field-group">
+        <legend class="field-group__legend"><span class="step-dot">3</span> 내 매물</legend>
+
+        <div class="segmented" role="radiogroup" aria-label="계약 구분">
+          <button type="button" class="segmented__btn is-on" role="radio" aria-checked="true" data-contract="전세">전세</button>
+          <button type="button" class="segmented__btn" role="radio" aria-checked="false" data-contract="월세">월세</button>
+        </div>
+
+        <div class="row row--2">
+          <div>
+            <label class="label" for="deposit">보증금 <span class="unit-tag">만원</span></label>
+            <div class="input-wrap">
+              <input id="deposit" class="input input--num" type="number" inputmode="numeric" min="0" max="999999" step="100" placeholder="15000" />
+              <span class="input-wrap__suffix">만원</span>
+            </div>
+            <p class="help help--readout" id="deposit-readout">금액을 입력해 주세요</p>
+          </div>
+          <div id="rent-field" hidden>
+            <label class="label" for="monthly-rent">월세 <span class="unit-tag">만원</span></label>
+            <div class="input-wrap">
+              <input id="monthly-rent" class="input input--num" type="number" inputmode="numeric" min="0" max="9999" step="1" placeholder="55" />
+              <span class="input-wrap__suffix">만원</span>
+            </div>
+            <p class="help help--readout" id="rent-readout">월세를 입력해 주세요</p>
+          </div>
+        </div>
+
+        <div class="row row--2">
+          <div>
+            <label class="label" for="area">전용면적 <span class="unit-tag">㎡</span></label>
+            <div class="input-wrap">
+              <input id="area" class="input input--num" type="number" inputmode="decimal" min="1" max="300" step="0.01" placeholder="33.06" />
+              <span class="input-wrap__suffix">㎡</span>
+            </div>
+            <p class="help help--readout" id="area-readout">입력하면 평수를 함께 보여드립니다</p>
+          </div>
+          <div>
+            <label class="label" for="buildyear">건축년도 <span class="unit-tag">선택</span></label>
+            <input id="buildyear" class="input input--num" type="number" inputmode="numeric" min="1950" max="2030" step="1" placeholder="2015" />
+            <p class="help">비교 근거 참고용입니다</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="label" for="conv-rate">
+            전월세전환율 <span class="unit-tag">%</span>
+            <button type="button" class="tip-btn" data-tip="월세를 전세로 환산할 때 쓰는 비율입니다. 환산보증금 = 보증금 + (월세×12 ÷ 전환율). 지역·시기에 따라 다르며 기본값은 5.5%입니다.">?</button>
+          </label>
+          <div class="input-wrap">
+            <input id="conv-rate" class="input input--num" type="number" inputmode="decimal" min="1" max="20" step="0.1" value="5.5" />
+            <span class="input-wrap__suffix">%</span>
+          </div>
+          <p class="help help--readout" id="conv-readout">—</p>
+        </div>
+
+        <p class="error" id="budget-error" role="alert" aria-live="polite" hidden></p>
+      </fieldset>
+
+      <!-- ④ 허위매물 점검용 선택 입력 -->
+      <details class="field-group field-group--collapsible">
+        <summary class="field-group__legend as-summary">
+          <span class="step-dot step-dot--ghost">4</span> 매물 정보 <span class="optional">선택 · 허위매물 점검에 쓰입니다</span>
+        </summary>
+        <div class="collapsible__body">
+          <div class="row row--2">
+            <div>
+              <label class="label" for="maintenance-fee">관리비 <span class="unit-tag">만원</span></label>
+              <div class="input-wrap">
+                <input id="maintenance-fee" class="input input--num" type="number" inputmode="numeric" min="0" max="999" step="1" placeholder="7" />
+                <span class="input-wrap__suffix">만원</span>
+              </div>
+            </div>
+            <div>
+              <label class="label" for="address-disclosure">주소 공개 수준</label>
+              <select id="address-disclosure" class="input">
+                <option value="">선택 안 함</option>
+                <option value="jibun">지번까지 공개</option>
+                <option value="dong">동까지만 공개</option>
+                <option value="hidden">비공개</option>
+              </select>
+            </div>
+          </div>
+          <div class="row row--2">
+            <div>
+              <label class="label" for="posting-age">게시 기간</label>
+              <select id="posting-age" class="input">
+                <option value="">모름</option>
+                <option value="3일 이내">3일 이내</option>
+                <option value="1주">1주 정도</option>
+                <option value="1개월 이상">1개월 이상</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" for="agent-number">중개사 등록번호</label>
+              <input id="agent-number" class="input" type="text" placeholder="예: 11590-2024-00123" />
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <div class="submit-bar">
+        <button id="submit-btn" class="btn btn--primary" type="submit">시세 적정성 분석하기</button>
+        <p class="submit-bar__note">최근 12개월 실거래를 불러옵니다 · 약 10초</p>
+      </div>
+    </form>
+  </section>
+
+  <!-- ==================================================================
+       결과 패널
+       ================================================================== -->
+  <section class="panel panel--result" aria-labelledby="result-heading">
+
+    <!-- 분석 전: 이용 안내 -->
+    <div id="intro" class="card intro">
+      <h2 id="result-heading" class="panel__title">이렇게 판정합니다</h2>
+      <ol class="steps">
+        <li><b>실거래 조회</b> — 국토교통부 연립다세대 전월세 실거래가를 최근 12개월치 불러옵니다.</li>
+        <li><b>같은 조건만 비교</b> — 같은 동네에서 입력하신 <b>전용면적 ±15%</b> 범위의 거래만 추립니다.</li>
+        <li><b>전세·월세 통일</b> — 월세는 전환율로 환산해 <b>환산보증금</b>이라는 하나의 기준으로 맞춥니다.</li>
+        <li><b>괴리율 판정</b> — 내 매물이 주변 중앙값보다 몇 % 높고 낮은지로 등급을 매깁니다.</li>
+      </ol>
+
+      <h3 class="intro__sub">판정 등급</h3>
+      <ul class="grade-legend">
+        <li><span class="grade-badge grade-badge--safe">🟢 안심</span> 중앙값보다 5% 넘게 저렴</li>
+        <li><span class="grade-badge grade-badge--fair">🔵 적정</span> -5% ~ +10%</li>
+        <li><span class="grade-badge grade-badge--warn">🟡 주의</span> +10% ~ +20%</li>
+        <li><span class="grade-badge grade-badge--danger">🔴 위험</span> +20% 초과</li>
+      </ul>
+
+      <p class="help">왼쪽에 조건을 넣고 <b>시세 적정성 분석하기</b>를 눌러 주세요. 인증키가 없어도 샘플 데이터로 먼저 둘러볼 수 있습니다.</p>
+      <button type="button" class="btn btn--ghost" id="demo-btn">샘플 데이터로 먼저 보기</button>
+    </div>
+
+    <!-- 분석 후 -->
+    <div id="result" hidden>
+
+      <!-- 안내 배지 (표본 확장, Mock 등) -->
+      <div id="notice-row" class="notice-row"></div>
+
+      <!-- ① 판정 요약 카드 -->
+      <div class="card judge" id="judge-card">
+        <div class="judge__top">
+          <span class="grade-badge grade-badge--lg" id="grade-badge">—</span>
+          <span class="pill" id="judge-n">—</span>
+        </div>
+        <p class="judge__gap" id="gap-text">—</p>
+        <div class="judge__compare">
+          <div>
+            <span class="judge__k">내 매물 환산보증금</span>
+            <strong id="my-price">—</strong>
+          </div>
+          <div class="judge__vs" aria-hidden="true">vs</div>
+          <div>
+            <span class="judge__k">주변 중앙값</span>
+            <strong id="median-price">—</strong>
+          </div>
+        </div>
+        <p class="judge__comment" id="grade-comment">—</p>
+      </div>
+
+      <!-- ② 시세 분포 차트 -->
+      <div class="card">
+        <h2 class="card__title">주변 시세 분포에서 내 위치</h2>
+        <div id="dist-chart" class="chart" aria-label="시세 분포와 내 매물 위치"></div>
+        <div class="stat-grid" id="stat-grid"></div>
+      </div>
+
+      <!-- ③ AI 쉬운 설명 -->
+      <div class="card" id="ai-card">
+        <h2 class="card__title">쉬운 설명 <span class="tag" id="ai-source">—</span></h2>
+        <p class="prose prose--lead" id="ai-headline">—</p>
+        <p class="prose" id="ai-summary">—</p>
+        <p class="prose" id="ai-budgetfit">—</p>
+        <ul class="caution-list" id="ai-cautions"></ul>
+        <details class="glossary">
+          <summary>부동산 용어 쉽게 보기</summary>
+          <dl id="ai-glossary"></dl>
+        </details>
+      </div>
+
+      <!-- ④ 허위매물 신호 점검 -->
+      <div class="card">
+        <h2 class="card__title">허위매물 신호 점검 <span class="tag" id="signal-count">—</span></h2>
+        <div id="risk-row" class="risk-row">
+          <div id="risk-gauge" class="chart" aria-label="허위매물 점검 점수"></div>
+          <div class="risk-row__info">
+            <p class="risk-row__grade" id="risk-grade">—</p>
+            <p class="risk-row__msg" id="risk-msg">—</p>
+          </div>
+        </div>
+        <p class="prose prose--lead" id="appraise-verdict" hidden>—</p>
+        <div id="signal-list" class="signal-list"></div>
+        <details class="glossary" id="not-evaluated-box" hidden>
+          <summary>아직 점검하지 못한 항목 <span id="not-evaluated-count"></span></summary>
+          <ul id="not-evaluated-list" class="caution-list"></ul>
+        </details>
+      </div>
+
+      <!-- ⑤ 주변 동네 비교 -->
+      <div class="card" id="neighbor-card" hidden>
+        <h2 class="card__title">주변 동네와 비교</h2>
+        <div id="neighbor-chart" class="chart" aria-label="주변 지역 시세 비교"></div>
+        <p class="help" id="neighbor-note">—</p>
+        <div class="alt-grid" id="alt-list"></div>
+      </div>
+
+      <!-- ⑥ 비교 근거 테이블 -->
+      <div class="card">
+        <h2 class="card__title">비교에 쓴 실거래 내역 <span class="tag" id="table-count">—</span></h2>
+        <div class="table-scroll">
+          <table class="table" id="comp-table">
+            <thead>
+              <tr>
+                <th>계약일</th><th>건물명</th><th>유형</th><th>층</th>
+                <th>전용면적</th><th>보증금</th><th>월세</th><th>환산보증금</th><th>건축년도</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn--ghost" id="table-more" hidden>더 보기</button>
+      </div>
+
+      <!-- ⑦ 확인 질문 · 행동 가이드 -->
+      <div class="card">
+        <h2 class="card__title">계약 전에 확인할 것 <span class="tag" id="questions-source">—</span></h2>
+        <ul class="check-list" id="questions-list"></ul>
+        <div class="link-row">
+          <a href="https://www.iros.go.kr" target="_blank" rel="noopener">인터넷등기소 (등기부등본)</a>
+          <a href="https://www.gov.kr" target="_blank" rel="noopener">정부24 (건축물대장)</a>
+          <a href="https://www.nsdi.go.kr" target="_blank" rel="noopener">국가공간정보포털 (중개사 조회)</a>
+        </div>
+      </div>
+
+      <!-- ⑧ 출처 · 면책 -->
+      <footer class="source-note">
+        <p><strong>데이터 출처</strong> · 국토교통부 실거래가 공개시스템(공공데이터포털) 연립다세대 전월세 실거래가 자료</p>
+        <p id="result-meta">—</p>
+        <p class="source-note__disclaimer">
+          본 판정은 공개 실거래 데이터와 통계 규칙에 근거한 <strong>참고 정보</strong>입니다. 실제 허위매물 여부나 계약의 적정성을 보증하지 않으며
+          법적 판단의 근거로 쓸 수 없습니다. 계약 전 반드시 현장 방문, 등기부등본·건축물대장 확인, 중개사무소 등록 여부 조회를 직접 하시기 바랍니다.
+        </p>
+      </footer>
+    </div>
+  </section>
+</main>
+
+<!-- 수집·분석 진행 상황 -->
+<div id="loading" class="loading" hidden>
+  <div class="loading__box">
+    <div class="loading__spinner" aria-hidden="true"></div>
+    <p class="loading__title" id="loading-title">실거래가를 불러오는 중…</p>
+    <p class="loading__step" id="loading-step">—</p>
+    <div class="loading__track"><div class="loading__fill" id="loading-fill"></div></div>
+    <p class="loading__elapsed" id="loading-elapsed">0초</p>
+    <!-- 어떤 이유로든 응답이 늦으면 사용자가 빠져나갈 수 있어야 한다 -->
+    <button type="button" class="btn btn--ghost loading__escape" id="loading-escape" hidden>
+      그만 기다리고 샘플 데이터로 보기
+    </button>
+  </div>
+</div>
+
+<!-- 짧은 안내 메시지 -->
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="script.js"></script>
+</body>
+</html>

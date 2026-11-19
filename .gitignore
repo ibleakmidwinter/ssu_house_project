@@ -1,0 +1,21 @@
+# 환경변수 (비밀 키) — 절대 커밋하지 않는다
+.env.local
+.env
+.env.*.local
+
+# Vercel
+.vercel
+
+# 의존성 (이 프로젝트는 의존성 0을 유지하지만, npx 사용 흔적 대비)
+node_modules/
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/settings.json
+
+# 로그
+*.log
+npm-debug.log*

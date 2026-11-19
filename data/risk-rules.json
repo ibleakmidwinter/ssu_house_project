@@ -1,0 +1,39 @@
+{
+  "_설명": "허위매물 리스크 규칙. 각 신호가 독립적으로 가점되고 총점은 0~100으로 자른다.",
+  "_원칙": "점수는 이 규칙으로만 계산한다. AI는 점수를 바꿀 수 없고 설명만 한다. 어떤 경우에도 '허위매물이다'로 단정하지 않는다.",
+  "signals": [
+    { "id": "R1",  "name": "이례적 저가",          "points": 15, "needs": [],                           "reason": "시세보다 크게 싼 가격은 미끼 매물의 가장 흔한 형태다" },
+    { "id": "R1P", "name": "극단적 저가",          "points": 20, "needs": [],                           "reason": "실거래로 설명되지 않는 수준의 가격이다" },
+    { "id": "R2",  "name": "면적-가격 불일치",     "points": 15, "needs": ["areaM2"],                   "reason": "'넓고 싼 집'으로 유인하는 전형적 패턴이다" },
+    { "id": "R3",  "name": "비현실적 조건 조합",   "points": 15, "needs": ["areaM2", "buildYear"],      "reason": "신축·넓은 면적·저가가 동시에 성립하는 실거래는 희박하다" },
+    { "id": "R4",  "name": "관리비 위장 의심",     "points": 12, "needs": ["maintenanceFee"],           "reason": "월세를 낮춰 보이게 하고 관리비로 회수하는 방식이다" },
+    { "id": "R5",  "name": "정보 은닉",            "points": 10, "needs": ["addressDisclosure"],        "reason": "주소가 비공개면 현장을 특정할 수 없다" },
+    { "id": "R5P", "name": "책임 주체 불명",       "points": 8,  "needs": ["addressDisclosure"],        "reason": "주소와 중개사 등록번호가 모두 없으면 확인할 대상이 없다" },
+    { "id": "R6",  "name": "장기 게시 모순",       "points": 10, "needs": ["postingAge"],               "reason": "조건이 좋은데 오래 안 나가는 것은 모순이다" },
+    { "id": "R7",  "name": "동일 조건 실거래 부재", "points": 8,  "needs": [],                           "reason": "같은 면적·유형의 거래가 아예 없는 조건이다" },
+    { "id": "R8",  "name": "유사 저가 실거래 존재", "points": -5, "needs": [],                           "reason": "그 가격대 실거래가 실제로 있으므로 의심을 덜어 준다" }
+  ],
+  "thresholds": {
+    "lowPricePercentile": 10,
+    "extremeLowPercentile": 5,
+    "extremeLowZScore": -2.5,
+    "areaTopPercentile": 75,
+    "unitPriceFloorPercentile": 5,
+    "newBuildYears": 5,
+    "maintenanceRatio": 0.35,
+    "longPostingLabel": "1개월 이상",
+    "similarUnitPriceTolerance": 0.10,
+    "similarOutlierMinCount": 2
+  },
+  "grades": [
+    { "max": 29,  "grade": "정상 범위", "tone": "ok",     "message": "특이 신호가 발견되지 않았습니다" },
+    { "max": 59,  "grade": "주의",      "tone": "warn",   "message": "확인이 필요한 신호가 있습니다" },
+    { "max": 100, "grade": "높은 주의", "tone": "danger", "message": "의심할 신호가 여러 개 겹칩니다" }
+  ],
+  "confidenceCap": {
+    "_설명": "표본이 빈약할 때 '위험' 단정은 오판 위험이 더 크므로 총점 상한을 둔다",
+    "낮음": 49,
+    "보통": 74,
+    "높음": 100
+  }
+}
